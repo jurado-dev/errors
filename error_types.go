@@ -58,7 +58,7 @@ func IsNotFound(err error) bool {
 type Conflict struct{
 	Err
 }
-func NewConflict7(fields ...interface{}) *Conflict {
+func NewConflict(fields ...interface{}) *Conflict {
 	return &Conflict{Err:parseFields(fields)}
 }
 func IsConflict(err error) bool {

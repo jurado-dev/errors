@@ -23,6 +23,10 @@ func (e *Err) Error() string {
 	return string(encoded)
 }
 
+func Cause (err error) Err {
+	return Err{Cause: err}
+}
+
 func (e *Err) GetCause() error {
 	return e.Cause
 }
