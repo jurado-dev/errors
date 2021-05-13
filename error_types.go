@@ -4,9 +4,10 @@ func parseFields(fields []interface{}) Err {
 
 	var err Err
 	for _, field := range fields {
-		if _, ok := field.(error); ok {
-			err.Cause = field.(error)
-			continue
+
+		if e, ok := field.(error); ok {
+			err.Cause = e.Error()
+			err.Wrapped = e
 		}
 
 		if _, ok := field.(string); ok {

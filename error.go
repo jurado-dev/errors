@@ -1,15 +1,16 @@
 package errors
 
 import (
-	"encoding/json"
+	"fmt"
 	"regexp"
 	"runtime"
 )
 
 type Err struct {
-	Cause   error    `json:"cause"`
+	Cause   string   `json:"cause"`
 	Message string   `json:"message"`
 	Trace   ErrTrace `json:"trace"`
+	Wrapped error    `json:"-"`
 }
 
 type ErrTrace struct {
@@ -19,15 +20,35 @@ type ErrTrace struct {
 }
 
 func (e *Err) Error() string {
-	encoded, _ := json.Marshal(e)
-	return string(encoded)
+
+	output := fmt.Sprintf("Info: %s", e.Message)
+	if e.Trace.Line != 0 {
+		output = fmt.Sprintf("Info: %s | Line: %d | Function: %s", e.Message, e.Trace.Line, e.Trace.Function)
+	}
+
+	return output
 }
 
-func Cause (err error) Err {
-	return Err{Cause: err}
+func ErrorF(err error) string {
+	e, ok := err.(*Err)
+	if !ok {
+		return err.Error()
+	}
+
+	return fmt.Sprintf("Info: %s | Cause: %s | Line: %d | Function: %s | File: %s", e.Message, e.Cause, e.Trace.Line, e.Trace.Function, e.Trace.File)
 }
 
-func (e *Err) GetCause() error {
+func Unwrap(err error) error {
+
+	e, ok := err.(*Err)
+	if !ok {
+		return err
+	}
+
+	return e.Wrapped
+}
+
+func (e *Err) GetCause() string {
 	return e.Cause
 }
 
@@ -37,6 +58,10 @@ func (e *Err) GetMessage() string {
 
 func (e *Err) GetTrace() ErrTrace {
 	return e.Trace
+}
+
+func (e *Err) GetWrapped() error {
+	return e.Wrapped
 }
 
 func Trace() ErrTrace {
