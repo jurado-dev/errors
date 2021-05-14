@@ -7,10 +7,11 @@ import (
 )
 
 type Err struct {
-	Cause   string   `json:"cause"`
-	Message string   `json:"message"`
-	Trace   ErrTrace `json:"trace"`
-	Wrapped error    `json:"-"`
+	Cause   string     `json:"cause"`
+	Message string     `json:"message"`
+	Trace   ErrTrace   `json:"trace"`
+	Stack   []ErrTrace `json:"stack"`
+	Wrapped error      `json:"-"`
 }
 
 type ErrTrace struct {
@@ -23,10 +24,27 @@ func (e *Err) Error() string {
 
 	output := fmt.Sprintf("Info: %s", e.Message)
 	if e.Trace.Line != 0 {
-		output = fmt.Sprintf("Info: %s | Line: %d | Function: %s", e.Message, e.Trace.Line, e.Trace.Function)
+
+		cause := e.Cause
+		if len(cause) > 100 {
+			cause = cause[:100] + "..."
+		}
+
+		output = fmt.Sprintf("Cause: %s | Info: %s | Line: %d | Function: %s", cause, e.Message, e.Trace.Line, e.Trace.Function)
 	}
 
 	return output
+}
+
+func Stack(err error, trace ErrTrace) error {
+	e, ok := err.(*Err)
+	if !ok {
+		return err
+	}
+
+	e.Stack = append(e.Stack, trace)
+
+	return e
 }
 
 func ErrorF(err error) string {
@@ -35,7 +53,17 @@ func ErrorF(err error) string {
 		return err.Error()
 	}
 
-	return fmt.Sprintf("Info: %s | Cause: %s | Line: %d | Function: %s | File: %s", e.Message, e.Cause, e.Trace.Line, e.Trace.Function, e.Trace.File)
+	var stackTrace string
+
+	traceFormat := "Line: %d | Function: %s | File: %s"
+
+	stackTrace += fmt.Sprintf("\n"+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
+
+	for _, stack := range e.Stack {
+		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
+	}
+
+	return fmt.Sprintf("Cause: %s\nInfo: %s\nStack trace: %s",  e.Cause, e.Message, stackTrace)
 }
 
 func Unwrap(err error) error {
@@ -60,6 +88,10 @@ func (e *Err) GetTrace() ErrTrace {
 	return e.Trace
 }
 
+func (e *Err) GetStack() []ErrTrace {
+	return e.Stack
+}
+
 func (e *Err) GetWrapped() error {
 	return e.Wrapped
 }
@@ -80,7 +112,7 @@ func Trace() ErrTrace {
 	}
 
 	funcName := function.Name()
-	rgx, err = regexp.Compile(`(?i)(/[\w\d_\-]+/[\w\d_*().\-]+$)`)
+	rgx, err = regexp.Compile(`(?i)(/[\w\d_*().\-]+$)`)
 	if err == nil {
 		matches := rgx.FindStringSubmatch(funcName)
 		if len(matches) > 0 {
