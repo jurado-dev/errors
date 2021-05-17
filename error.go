@@ -36,26 +36,59 @@ func (e *Err) Error() string {
 	return output
 }
 
-func Stack(err error, trace ErrTrace) error {
-	e, ok := err.(*Err)
-	if !ok {
-		return err
+func extractErr(err error) Err {
+
+	switch e := err.(type) {
+	case *Internal:
+		return e.Err
+	case *NotFound:
+		return e.Err
+	case *Conflict:
+		return e.Err
+	case *BadRequest:
+		return e.Err
+	case *Unauthorized:
+		return e.Err
 	}
 
-	e.Stack = append(e.Stack, trace)
-
-	return e
+	return Err{}
 }
 
+//	Stack adds a trace to the stack slice
+func Stack(err error, trace ErrTrace) error {
+
+	switch e := err.(type) {
+	case *Internal:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	case *NotFound:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	case *Conflict:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	case *BadRequest:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	case *Unauthorized:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	}
+
+	return err
+}
+
+//	ErrorF returns the full error information
 func ErrorF(err error) string {
-	e, ok := err.(*Err)
-	if !ok {
+
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
 		return err.Error()
 	}
 
 	var stackTrace string
 
-	traceFormat := "Line: %d | Function: %s | File: %s"
+	traceFormat := "Line=%d | Function=%s | File=%s"
 
 	stackTrace += fmt.Sprintf("\n"+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
 
@@ -63,13 +96,14 @@ func ErrorF(err error) string {
 		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
 	}
 
-	return fmt.Sprintf("Cause: %s\nInfo: %s\nStack trace: %s",  e.Cause, e.Message, stackTrace)
+	return fmt.Sprintf("\nCause: %s\nInfo: %s\nStack trace: %s",  e.Cause, e.Message, stackTrace)
 }
 
+// Unwrap returns the original error
 func Unwrap(err error) error {
 
-	e, ok := err.(*Err)
-	if !ok {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
 		return err
 	}
 
