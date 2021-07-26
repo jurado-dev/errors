@@ -49,6 +49,8 @@ func extractErr(err error) Err {
 		return e.Err
 	case *Unauthorized:
 		return e.Err
+	case *Fatal:
+		return e.Err
 	}
 
 	return Err{}
@@ -73,6 +75,9 @@ func Stack(err error, trace ErrTrace) error {
 	case *Unauthorized:
 		e.Err.Stack = append(e.Err.Stack, trace)
 		return e
+	case *Fatal:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
 	}
 
 	return err
@@ -88,12 +93,12 @@ func ErrorF(err error) string {
 
 	var stackTrace string
 
-	traceFormat := "Line=%d | Function=%s | File=%s"
+	traceFormat := "Line=%-50d | Function=%-50s | File=%-50s"
 
-	stackTrace += fmt.Sprintf("\n"+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
+	stackTrace += fmt.Sprintf("\n - "+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
 
 	for _, stack := range e.Stack {
-		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
+		stackTrace += fmt.Sprintf("\n - "+traceFormat, stack.Line, stack.Function, stack.File)
 	}
 
 	return fmt.Sprintf("\nCause: %s\nInfo: %s\nStack trace: %s",  e.Cause, e.Message, stackTrace)

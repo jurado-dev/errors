@@ -77,3 +77,14 @@ func IsUnauthorized(err error) bool {
 	_, ok := err.(*Unauthorized)
 	return ok
 }
+
+type Fatal struct{
+	Err
+}
+func NewFatal(fields ...interface{}) *Fatal {
+	return &Fatal{Err:parseFields(fields)}
+}
+func IsFatal(err error) bool {
+	_, ok := err.(*Fatal)
+	return ok
+}
