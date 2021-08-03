@@ -20,6 +20,7 @@ type ErrTrace struct {
 	Line     int    `json:"line"`
 }
 
+//	Error implements the interface
 func (e *Err) Error() string {
 
 	output := fmt.Sprintf("Info: %s", e.Message)
