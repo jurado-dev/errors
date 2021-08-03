@@ -26,8 +26,8 @@ func (e *Err) Error() string {
 	if e.Trace.Line != 0 {
 
 		cause := e.Cause
-		if len(cause) > 100 {
-			cause = cause[:100] + "..."
+		if len(cause) > 200 {
+			cause = cause[:200] + "..."
 		}
 
 		output = fmt.Sprintf("Cause: %s | Info: %s | Line: %d | Function: %s", cause, e.Message, e.Trace.Line, e.Trace.Function)
