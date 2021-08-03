@@ -94,15 +94,15 @@ func ErrorF(err error) string {
 
 	var stackTrace string
 
-	traceFormat := "Line=%-50d | Function=%-50s | File=%-50s"
+	traceFormat := "> Line=%-15d | Function=%-35s | File=%-30s"
 
-	stackTrace += fmt.Sprintf("\n - "+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
+	stackTrace += fmt.Sprintf("\n"+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
 
 	for _, stack := range e.Stack {
-		stackTrace += fmt.Sprintf("\n - "+traceFormat, stack.Line, stack.Function, stack.File)
+		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
 	}
 
-	return fmt.Sprintf("\nCause: %s\nInfo: %s\nStack trace: %s",  e.Cause, e.Message, stackTrace)
+	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack trace: %s",  e.Cause, e.Message, stackTrace)
 }
 
 // Unwrap returns the original error
