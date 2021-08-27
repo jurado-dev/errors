@@ -17,6 +17,7 @@ func parseFields(fields []interface{}) Err {
 
 		if _, ok := field.(ErrTrace); ok {
 			err.Trace = field.(ErrTrace)
+			err.Stack = append(err.Stack, field.(ErrTrace))
 			continue
 		}
 	}

@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"runtime"
@@ -118,7 +119,7 @@ func Unwrap(err error) error {
 
 func GetCause(err error) string {
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e.Cause == ""{
 		return err.Error()
 	}
 	return e.Cause
@@ -126,7 +127,7 @@ func GetCause(err error) string {
 
 func GetMessage(err error) string {
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e.Message == "" {
 		return err.Error()
 	}
 	return e.Message
@@ -134,7 +135,7 @@ func GetMessage(err error) string {
 
 func GetTrace(err error) ErrTrace {
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e.Trace.File == "" {
 		return ErrTrace{}
 	}
 	return e.Trace
@@ -142,15 +143,26 @@ func GetTrace(err error) ErrTrace {
 
 func GetStack(err error) []ErrTrace {
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if len(e.Stack) == 0{
 		return []ErrTrace{}
 	}
 	return e.Stack
 }
 
+func GetStackJson(err error) string {
+	e := extractErr(err)
+	if len(e.Stack) == 0{
+		return "{}"
+	}
+
+	encoded, _ := json.Marshal(e.Stack)
+
+	return string(encoded)
+}
+
 func GetWrapped(err error) error {
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e.Wrapped == nil{
 		return err
 	}
 	return e.Wrapped
