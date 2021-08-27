@@ -119,7 +119,9 @@ func Unwrap(err error) error {
 
 func GetCause(err error) string {
 	e := extractErr(err)
-	if e.Cause == ""{
+	if e.Cause == "" && e.Message != ""{
+		return e.Message
+	}else if e.Cause == "" && e.Message == "" {
 		return err.Error()
 	}
 	return e.Cause
