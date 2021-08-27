@@ -116,23 +116,43 @@ func Unwrap(err error) error {
 	return e.Wrapped
 }
 
-func (e *Err) GetCause() string {
+func GetCause(err error) string {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
+		return err.Error()
+	}
 	return e.Cause
 }
 
-func (e *Err) GetMessage() string {
+func GetMessage(err error) string {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
+		return err.Error()
+	}
 	return e.Message
 }
 
-func (e *Err) GetTrace() ErrTrace {
+func GetTrace(err error) ErrTrace {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
+		return ErrTrace{}
+	}
 	return e.Trace
 }
 
-func (e *Err) GetStack() []ErrTrace {
+func GetStack(err error) []ErrTrace {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
+		return []ErrTrace{}
+	}
 	return e.Stack
 }
 
-func (e *Err) GetWrapped() error {
+func GetWrapped(err error) error {
+	e := extractErr(err)
+	if e.Cause == "" && e.Message == "" {
+		return err
+	}
 	return e.Wrapped
 }
 
