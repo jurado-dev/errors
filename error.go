@@ -13,6 +13,7 @@ type Err struct {
 	Trace   ErrTrace   `json:"trace"`
 	Stack   []ErrTrace `json:"stack"`
 	Wrapped error      `json:"-"`
+	Code    int        `json:"code"`
 }
 
 type ErrTrace struct {
@@ -61,6 +62,10 @@ func extractErr(err error) Err {
 //	Stack adds a trace to the stack slice
 func Stack(err error, trace ErrTrace) error {
 
+	if err == nil {
+		return err
+	}
+
 	switch e := err.(type) {
 	case *Internal:
 		e.Err.Stack = append(e.Err.Stack, trace)
@@ -88,6 +93,10 @@ func Stack(err error, trace ErrTrace) error {
 //	ErrorF returns the full error information
 func ErrorF(err error) string {
 
+	if err == nil {
+		return ""
+	}
+
 	e := extractErr(err)
 	if e.Cause == "" && e.Message == "" {
 		return err.Error()
@@ -103,11 +112,15 @@ func ErrorF(err error) string {
 		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
 	}
 
-	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack trace: %s",  e.Cause, e.Message, stackTrace)
+	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack trace: %s", e.Cause, e.Message, stackTrace)
 }
 
 // Unwrap returns the original error
 func Unwrap(err error) error {
+
+	if err == nil {
+		return err
+	}
 
 	e := extractErr(err)
 	if e.Cause == "" && e.Message == "" {
@@ -118,16 +131,22 @@ func Unwrap(err error) error {
 }
 
 func GetCause(err error) string {
+	if err == nil {
+		return ""
+	}
 	e := extractErr(err)
-	if e.Cause == "" && e.Message != ""{
+	if e.Cause == "" && e.Message != "" {
 		return e.Message
-	}else if e.Cause == "" && e.Message == "" {
+	} else if e.Cause == "" && e.Message == "" {
 		return err.Error()
 	}
 	return e.Cause
 }
 
 func GetMessage(err error) string {
+	if err == nil {
+		return ""
+	}
 	e := extractErr(err)
 	if e.Message == "" {
 		return err.Error()
@@ -136,6 +155,9 @@ func GetMessage(err error) string {
 }
 
 func GetTrace(err error) ErrTrace {
+	if err == nil {
+		return ErrTrace{}
+	}
 	e := extractErr(err)
 	if e.Trace.File == "" {
 		return ErrTrace{}
@@ -144,16 +166,22 @@ func GetTrace(err error) ErrTrace {
 }
 
 func GetStack(err error) []ErrTrace {
+	if err == nil {
+		return nil
+	}
 	e := extractErr(err)
-	if len(e.Stack) == 0{
+	if len(e.Stack) == 0 {
 		return []ErrTrace{}
 	}
 	return e.Stack
 }
 
 func GetStackJson(err error) string {
+	if err == nil {
+		return ""
+	}
 	e := extractErr(err)
-	if len(e.Stack) == 0{
+	if len(e.Stack) == 0 {
 		return "{}"
 	}
 
@@ -163,11 +191,42 @@ func GetStackJson(err error) string {
 }
 
 func GetWrapped(err error) error {
+	if err == nil {
+		return nil
+	}
 	e := extractErr(err)
-	if e.Wrapped == nil{
+	if e.Wrapped == nil {
 		return err
 	}
 	return e.Wrapped
+}
+
+func GetCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	e := extractErr(err)
+	if e.Code == 0 {
+		if IsNotFound(err) {
+			return 404
+		}
+		if IsUnauthorized(err) {
+			return 403
+		}
+		if IsBadRequest(err) {
+			return 400
+		}
+		if IsInternal(err) || IsFatal(err) {
+			return 500
+		}
+		if IsConflict(err) {
+			return 409
+		}
+		if IsNoContent(err) {
+			return 204
+		}
+	}
+	return e.Code
 }
 
 func Trace() ErrTrace {

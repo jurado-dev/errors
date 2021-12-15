@@ -20,6 +20,11 @@ func parseFields(fields []interface{}) Err {
 			err.Stack = append(err.Stack, field.(ErrTrace))
 			continue
 		}
+
+		if _, ok := field.(int); ok {
+			err.Code = field.(int)
+			continue
+		}
 	}
 	return err
 }
@@ -87,5 +92,16 @@ func NewFatal(fields ...interface{}) *Fatal {
 }
 func IsFatal(err error) bool {
 	_, ok := err.(*Fatal)
+	return ok
+}
+
+type NoContent struct {
+	Err
+}
+func NewNoContent(fields ...interface{}) *NoContent {
+	return &NoContent{Err: parseFields(fields)}
+}
+func IsNoContent(err error) bool {
+	_, ok := err.(*NoContent)
 	return ok
 }
