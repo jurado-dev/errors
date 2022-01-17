@@ -8,12 +8,13 @@ import (
 )
 
 type Err struct {
-	Cause   string     `json:"cause"`
-	Message string     `json:"message"`
-	Trace   ErrTrace   `json:"trace"`
-	Stack   []ErrTrace `json:"stack"`
-	Wrapped error      `json:"-"`
-	Code    int        `json:"code"`
+	Cause        string     `json:"cause"`
+	Message      string     `json:"message"`
+	StackMessage string     `json:"stack_message"`
+	Trace        ErrTrace   `json:"trace"`
+	Stack        []ErrTrace `json:"stack"`
+	Wrapped      error      `json:"-"`
+	Code         int        `json:"code"`
 }
 
 type ErrTrace struct {
@@ -85,8 +86,49 @@ func Stack(err error, trace ErrTrace) error {
 	case *Fatal:
 		e.Err.Stack = append(e.Err.Stack, trace)
 		return e
+	case *NoContent:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
 	}
 
+	return err
+}
+
+func StackMsg(err error, msg string, trace ErrTrace) error {
+	if err == nil {
+		return err
+	}
+
+	switch e := err.(type) {
+	case *Internal:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *NotFound:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *Conflict:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *BadRequest:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *Unauthorized:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *Fatal:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *NoContent:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	}
 	return err
 }
 
@@ -104,15 +146,13 @@ func ErrorF(err error) string {
 
 	var stackTrace string
 
-	traceFormat := "> Line=%-15d | Function=%-35s | File=%-30s"
-
-	stackTrace += fmt.Sprintf("\n"+traceFormat, e.Trace.Line, e.Trace.Function, e.Trace.File)
+	traceFormat := "> Line=%-4d | Function=%-40s | File=%-30s"
 
 	for _, stack := range e.Stack {
 		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
 	}
 
-	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack trace: %s", e.Cause, e.Message, stackTrace)
+	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack msg: %s\n- Error code: %d\n- Stack trace: %s", e.Cause, e.Message, e.StackMessage, e.Code, stackTrace)
 }
 
 // Unwrap returns the original error
