@@ -33,62 +33,86 @@ type BadRequest struct {
 	Err
 }
 func NewBadRequest(fields ...interface{}) *BadRequest {
-	return &BadRequest{Err:parseFields(fields)}
+	e := &BadRequest{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 400
+	}
+	return e
 }
 func IsBadRequest(err error) bool {
 	_, ok := err.(*BadRequest)
 	return ok
 }
 
-type Internal struct{
+type Internal struct {
 	Err
 }
 func NewInternal(fields ...interface{}) *Internal {
-	return &Internal{Err:parseFields(fields)}
+	e := &Internal{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 500
+	}
+	return e
 }
 func IsInternal(err error) bool {
 	_, ok := err.(*Internal)
 	return ok
 }
 
-type NotFound struct{
+type NotFound struct {
 	Err
 }
 func NewNotFound(fields ...interface{}) *NotFound {
-	return &NotFound{Err:parseFields(fields)}
+	e := &NotFound{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 404
+	}
+	return e
 }
 func IsNotFound(err error) bool {
 	_, ok := err.(*NotFound)
 	return ok
 }
 
-type Conflict struct{
+type Conflict struct {
 	Err
 }
 func NewConflict(fields ...interface{}) *Conflict {
-	return &Conflict{Err:parseFields(fields)}
+	e := &Conflict{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 409
+	}
+	return e
 }
 func IsConflict(err error) bool {
 	_, ok := err.(*Conflict)
 	return ok
 }
 
-type Unauthorized struct{
+type Unauthorized struct {
 	Err
 }
 func NewUnauthorized(fields ...interface{}) *Unauthorized {
-	return &Unauthorized{Err:parseFields(fields)}
+	e := &Unauthorized{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 403
+	}
+	return e
 }
 func IsUnauthorized(err error) bool {
 	_, ok := err.(*Unauthorized)
 	return ok
 }
 
-type Fatal struct{
+type Fatal struct {
 	Err
 }
 func NewFatal(fields ...interface{}) *Fatal {
-	return &Fatal{Err:parseFields(fields)}
+	e := &Fatal{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 500
+	}
+	return e
 }
 func IsFatal(err error) bool {
 	_, ok := err.(*Fatal)
@@ -98,8 +122,13 @@ func IsFatal(err error) bool {
 type NoContent struct {
 	Err
 }
+
 func NewNoContent(fields ...interface{}) *NoContent {
-	return &NoContent{Err: parseFields(fields)}
+	e := &NoContent{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 204
+	}
+	return e
 }
 func IsNoContent(err error) bool {
 	_, ok := err.(*NoContent)
