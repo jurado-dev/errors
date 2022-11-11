@@ -122,7 +122,6 @@ func IsFatal(err error) bool {
 type NoContent struct {
 	Err
 }
-
 func NewNoContent(fields ...interface{}) *NoContent {
 	e := &NoContent{Err: parseFields(fields)}
 	if e.Err.Code <= 0 {
@@ -132,5 +131,20 @@ func NewNoContent(fields ...interface{}) *NoContent {
 }
 func IsNoContent(err error) bool {
 	_, ok := err.(*NoContent)
+	return ok
+}
+
+type Timeout struct {
+	Err
+}
+func NewTimeout(fields ...interface{}) *NoContent {
+	e := &NoContent{Err: parseFields(fields)}
+	if e.Err.Code <= 0 {
+		e.Err.Code = 408
+	}
+	return e
+}
+func IsTimeout(err error) bool {
+	_, ok := err.(*Timeout)
 	return ok
 }
