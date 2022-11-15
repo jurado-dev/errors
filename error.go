@@ -55,6 +55,10 @@ func extractErr(err error) Err {
 		return e.Err
 	case *Fatal:
 		return e.Err
+	case *NoContent:
+		return e.Err
+	case *Timeout:
+		return e.Err
 	}
 
 	return Err{}
@@ -87,6 +91,9 @@ func Stack(err error, trace ErrTrace) error {
 		e.Err.Stack = append(e.Err.Stack, trace)
 		return e
 	case *NoContent:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		return e
+	case *Timeout:
 		e.Err.Stack = append(e.Err.Stack, trace)
 		return e
 	}
@@ -125,6 +132,10 @@ func StackMsg(err error, msg string, trace ErrTrace) error {
 		e.StackMessage = msg
 		return e
 	case *NoContent:
+		e.Err.Stack = append(e.Err.Stack, trace)
+		e.StackMessage = msg
+		return e
+	case *Timeout:
 		e.Err.Stack = append(e.Err.Stack, trace)
 		e.StackMessage = msg
 		return e

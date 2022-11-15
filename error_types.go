@@ -137,8 +137,8 @@ func IsNoContent(err error) bool {
 type Timeout struct {
 	Err
 }
-func NewTimeout(fields ...interface{}) *NoContent {
-	e := &NoContent{Err: parseFields(fields)}
+func NewTimeout(fields ...interface{}) *Timeout {
+	e := &Timeout{Err: parseFields(fields)}
 	if e.Err.Code <= 0 {
 		e.Err.Code = 408
 	}
