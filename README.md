@@ -434,10 +434,6 @@ All operations in this package are thread-safe:
 - Stack operations use mutexes to protect concurrent access
 - `GetStack()` returns a copy to prevent external modification
 
-## Migration from v1.0.x
-
-If you're upgrading from v1.0.x, see [CHANGELOG.md](CHANGELOG.md) for breaking changes and migration guide.
-
 ## License
 
 MIT

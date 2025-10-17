@@ -29,29 +29,19 @@ type Err struct {
 }
 
 func (e *Err) lock() {
-	if e.mu == nil {
-		e.mu = &sync.RWMutex{}
-	}
 	e.mu.Lock()
 }
 
 func (e *Err) unlock() {
-	if e.mu != nil {
-		e.mu.Unlock()
-	}
+	e.mu.Unlock()
 }
 
 func (e *Err) rlock() {
-	if e.mu == nil {
-		e.mu = &sync.RWMutex{}
-	}
 	e.mu.RLock()
 }
 
 func (e *Err) runlock() {
-	if e.mu != nil {
-		e.mu.RUnlock()
-	}
+	e.mu.RUnlock()
 }
 
 type ErrTrace struct {
@@ -89,30 +79,14 @@ func (e *Err) Error() string {
 }
 
 func extractErr(err error) *Err {
-
-	switch e := err.(type) {
-	case *Internal:
-		return &e.Err
-	case *NotFound:
-		return &e.Err
-	case *Conflict:
-		return &e.Err
-	case *BadRequest:
-		return &e.Err
-	case *Unauthorized:
-		return &e.Err
-	case *Fatal:
-		return &e.Err
-	case *NoContent:
-		return &e.Err
+	if te, ok := err.(TypedError); ok {
+		return te.GetErr()
 	}
-
 	return nil
 }
 
 // Stack adds a trace to the stack slice (thread-safe)
 func Stack(err error, trace ErrTrace) error {
-
 	if err == nil {
 		return err
 	}
@@ -120,8 +94,8 @@ func Stack(err error, trace ErrTrace) error {
 	if te, ok := err.(TypedError); ok {
 		e := te.GetErr()
 		e.lock()
+		defer e.unlock()
 		e.Stack = append(e.Stack, trace)
-		e.unlock()
 		return err
 	}
 
@@ -136,9 +110,9 @@ func StackMsg(err error, msg string, trace ErrTrace) error {
 	if te, ok := err.(TypedError); ok {
 		e := te.GetErr()
 		e.lock()
+		defer e.unlock()
 		e.Stack = append(e.Stack, trace)
 		e.StackMessage = msg
-		e.unlock()
 		return err
 	}
 
@@ -159,8 +133,11 @@ func ErrorF(err error) string {
 	e.rlock()
 	defer e.runlock()
 
+	// Get the actual HTTP code (handles default codes for each type)
+	code := GetCode(err)
+
 	// Build the output
-	output := fmt.Sprintf("\nError [Code: %d]", e.Code)
+	output := fmt.Sprintf("\nError [Code: %d]", code)
 
 	if e.Cause != "" {
 		output += fmt.Sprintf("\n  Cause:   %s", e.Cause)
@@ -311,6 +288,12 @@ func Trace() ErrTrace {
 	pc := make([]uintptr, 10)
 	runtime.Callers(2, pc)
 	function := runtime.FuncForPC(pc[0])
+
+	// Handle nil function gracefully
+	if function == nil {
+		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+	}
+
 	file, line := function.FileLine(pc[0])
 
 	// matching only the file name

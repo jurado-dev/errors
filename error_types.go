@@ -3,6 +3,7 @@ package errors
 import (
 	stderrors "errors"
 	"fmt"
+	"sync"
 )
 
 // Option is a functional option for error construction
@@ -50,10 +51,12 @@ func Code(code int) Option {
 
 func applyOptions(opts []Option) Err {
 	var err Err
+	// Initialize mutex immediately to avoid race conditions
+	err.mu = &sync.RWMutex{}
 	for _, opt := range opts {
 		opt(&err)
 	}
-	// Return by value is safe because mutex is zero-value (unlocked)
+	// Return by value is safe because mutex is already initialized
 	return err
 }
 
