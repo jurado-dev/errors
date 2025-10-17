@@ -10,19 +10,19 @@ func parseFields(fields []interface{}) Err {
 			err.Wrapped = e
 		}
 
-		if _, ok := field.(string); ok {
-			err.Message = field.(string)
+		if msg, ok := field.(string); ok {
+			err.Message = msg
 			continue
 		}
 
-		if _, ok := field.(ErrTrace); ok {
-			err.Trace = field.(ErrTrace)
-			err.Stack = append(err.Stack, field.(ErrTrace))
+		if trace, ok := field.(ErrTrace); ok {
+			err.Trace = trace
+			err.Stack = append(err.Stack, trace)
 			continue
 		}
 
-		if _, ok := field.(int); ok {
-			err.Code = field.(int)
+		if code, ok := field.(int); ok {
+			err.Code = code
 			continue
 		}
 	}
@@ -32,63 +32,69 @@ func parseFields(fields []interface{}) Err {
 type BadRequest struct {
 	Err
 }
+
 func NewBadRequest(fields ...interface{}) *BadRequest {
-	return &BadRequest{Err:parseFields(fields)}
+	return &BadRequest{Err: parseFields(fields)}
 }
 func IsBadRequest(err error) bool {
 	_, ok := err.(*BadRequest)
 	return ok
 }
 
-type Internal struct{
+type Internal struct {
 	Err
 }
+
 func NewInternal(fields ...interface{}) *Internal {
-	return &Internal{Err:parseFields(fields)}
+	return &Internal{Err: parseFields(fields)}
 }
 func IsInternal(err error) bool {
 	_, ok := err.(*Internal)
 	return ok
 }
 
-type NotFound struct{
+type NotFound struct {
 	Err
 }
+
 func NewNotFound(fields ...interface{}) *NotFound {
-	return &NotFound{Err:parseFields(fields)}
+	return &NotFound{Err: parseFields(fields)}
 }
 func IsNotFound(err error) bool {
 	_, ok := err.(*NotFound)
 	return ok
 }
 
-type Conflict struct{
+type Conflict struct {
 	Err
 }
+
 func NewConflict(fields ...interface{}) *Conflict {
-	return &Conflict{Err:parseFields(fields)}
+	return &Conflict{Err: parseFields(fields)}
 }
 func IsConflict(err error) bool {
 	_, ok := err.(*Conflict)
 	return ok
 }
 
-type Unauthorized struct{
+type Unauthorized struct {
 	Err
 }
+
 func NewUnauthorized(fields ...interface{}) *Unauthorized {
-	return &Unauthorized{Err:parseFields(fields)}
+	return &Unauthorized{Err: parseFields(fields)}
 }
 func IsUnauthorized(err error) bool {
 	_, ok := err.(*Unauthorized)
 	return ok
 }
 
-type Fatal struct{
+type Fatal struct {
 	Err
 }
+
 func NewFatal(fields ...interface{}) *Fatal {
-	return &Fatal{Err:parseFields(fields)}
+	return &Fatal{Err: parseFields(fields)}
 }
 func IsFatal(err error) bool {
 	_, ok := err.(*Fatal)
@@ -98,6 +104,7 @@ func IsFatal(err error) bool {
 type NoContent struct {
 	Err
 }
+
 func NewNoContent(fields ...interface{}) *NoContent {
 	return &NoContent{Err: parseFields(fields)}
 }

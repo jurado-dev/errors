@@ -7,6 +7,15 @@ import (
 	"runtime"
 )
 
+const (
+	maxCauseLength = 200
+)
+
+var (
+	fileRegex = regexp.MustCompile(`(?i)/([\w\d_+*()\[\]%=\-]+\.\w+)$`)
+	funcRegex = regexp.MustCompile(`(?i)(/[\w\d_*().\-]+$)`)
+)
+
 type Err struct {
 	Cause        string     `json:"cause"`
 	Message      string     `json:"message"`
@@ -23,15 +32,15 @@ type ErrTrace struct {
 	Line     int    `json:"line"`
 }
 
-//	Error implements the interface
+// Error implements the interface
 func (e *Err) Error() string {
 
 	output := fmt.Sprintf("Info: %s", e.Message)
 	if e.Trace.Line != 0 {
 
 		cause := e.Cause
-		if len(cause) > 200 {
-			cause = cause[:200] + "..."
+		if len(cause) > maxCauseLength {
+			cause = cause[:maxCauseLength] + "..."
 		}
 
 		output = fmt.Sprintf("Cause: %s | Info: %s | Line: %d | Function: %s", cause, e.Message, e.Trace.Line, e.Trace.Function)
@@ -55,12 +64,14 @@ func extractErr(err error) Err {
 		return e.Err
 	case *Fatal:
 		return e.Err
+	case *NoContent:
+		return e.Err
 	}
 
 	return Err{}
 }
 
-//	Stack adds a trace to the stack slice
+// Stack adds a trace to the stack slice
 func Stack(err error, trace ErrTrace) error {
 
 	if err == nil {
@@ -132,7 +143,7 @@ func StackMsg(err error, msg string, trace ErrTrace) error {
 	return err
 }
 
-//	ErrorF returns the full error information
+// ErrorF returns the full error information
 func ErrorF(err error) string {
 
 	if err == nil {
@@ -207,7 +218,7 @@ func GetTrace(err error) ErrTrace {
 
 func GetStack(err error) []ErrTrace {
 	if err == nil {
-		return nil
+		return []ErrTrace{}
 	}
 	e := extractErr(err)
 	if len(e.Stack) == 0 {
@@ -225,7 +236,10 @@ func GetStackJson(err error) string {
 		return "{}"
 	}
 
-	encoded, _ := json.Marshal(e.Stack)
+	encoded, jsonErr := json.Marshal(e.Stack)
+	if jsonErr != nil {
+		return "{}"
+	}
 
 	return string(encoded)
 }
@@ -276,21 +290,16 @@ func Trace() ErrTrace {
 	file, line := function.FileLine(pc[0])
 
 	// matching only the file name
-	rgx, err := regexp.Compile(`(?i)/([\w\d_+*()\[\]%=\-]+\.\w+)$`)
-	if err == nil {
-		matches := rgx.FindStringSubmatch(file)
-		if len(matches) > 0 {
-			file = matches[1]
-		}
+	matches := fileRegex.FindStringSubmatch(file)
+	if len(matches) > 0 {
+		file = matches[1]
 	}
 
 	funcName := function.Name()
-	rgx, err = regexp.Compile(`(?i)(/[\w\d_*().\-]+$)`)
-	if err == nil {
-		matches := rgx.FindStringSubmatch(funcName)
-		if len(matches) > 0 {
-			funcName = matches[1]
-		}
+	matches = funcRegex.FindStringSubmatch(funcName)
+	if len(matches) > 0 {
+		funcName = matches[1]
 	}
+
 	return ErrTrace{Line: line, File: file, Function: funcName}
 }
