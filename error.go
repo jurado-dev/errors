@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"sync"
 )
 
 const (
@@ -24,6 +25,33 @@ type Err struct {
 	Stack        []ErrTrace `json:"stack"`
 	Wrapped      error      `json:"-"`
 	Code         int        `json:"code"`
+	mu           *sync.RWMutex
+}
+
+func (e *Err) lock() {
+	if e.mu == nil {
+		e.mu = &sync.RWMutex{}
+	}
+	e.mu.Lock()
+}
+
+func (e *Err) unlock() {
+	if e.mu != nil {
+		e.mu.Unlock()
+	}
+}
+
+func (e *Err) rlock() {
+	if e.mu == nil {
+		e.mu = &sync.RWMutex{}
+	}
+	e.mu.RLock()
+}
+
+func (e *Err) runlock() {
+	if e.mu != nil {
+		e.mu.RUnlock()
+	}
 }
 
 type ErrTrace struct {
@@ -32,74 +60,69 @@ type ErrTrace struct {
 	Line     int    `json:"line"`
 }
 
-// Error implements the interface
-func (e *Err) Error() string {
-
-	output := fmt.Sprintf("Info: %s", e.Message)
-	if e.Trace.Line != 0 {
-
-		cause := e.Cause
-		if len(cause) > maxCauseLength {
-			cause = cause[:maxCauseLength] + "..."
-		}
-
-		output = fmt.Sprintf("Cause: %s | Info: %s | Line: %d | Function: %s", cause, e.Message, e.Trace.Line, e.Trace.Function)
-	}
-
-	return output
+// TypedError interface for all error types in this package
+type TypedError interface {
+	error
+	GetErr() *Err
+	GetCode() int
 }
 
-func extractErr(err error) Err {
+// Error implements the interface
+func (e *Err) Error() string {
+	// Simple format when no trace is available
+	if e.Trace.Line == 0 {
+		return e.Message
+	}
+
+	// Full format with trace information
+	cause := e.Cause
+	if len(cause) > maxCauseLength {
+		cause = cause[:maxCauseLength] + "..."
+	}
+
+	// If no cause is set, omit it from output
+	if cause == "" {
+		return fmt.Sprintf("%s (at %s:%d)", e.Message, e.Trace.Function, e.Trace.Line)
+	}
+
+	return fmt.Sprintf("%s: %s (at %s:%d)", cause, e.Message, e.Trace.Function, e.Trace.Line)
+}
+
+func extractErr(err error) *Err {
 
 	switch e := err.(type) {
 	case *Internal:
-		return e.Err
+		return &e.Err
 	case *NotFound:
-		return e.Err
+		return &e.Err
 	case *Conflict:
-		return e.Err
+		return &e.Err
 	case *BadRequest:
-		return e.Err
+		return &e.Err
 	case *Unauthorized:
-		return e.Err
+		return &e.Err
 	case *Fatal:
-		return e.Err
+		return &e.Err
 	case *NoContent:
-		return e.Err
+		return &e.Err
 	}
 
-	return Err{}
+	return nil
 }
 
-// Stack adds a trace to the stack slice
+// Stack adds a trace to the stack slice (thread-safe)
 func Stack(err error, trace ErrTrace) error {
 
 	if err == nil {
 		return err
 	}
 
-	switch e := err.(type) {
-	case *Internal:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *NotFound:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *Conflict:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *BadRequest:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *Unauthorized:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *Fatal:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
-	case *NoContent:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		return e
+	if te, ok := err.(TypedError); ok {
+		e := te.GetErr()
+		e.lock()
+		e.Stack = append(e.Stack, trace)
+		e.unlock()
+		return err
 	}
 
 	return err
@@ -110,63 +133,59 @@ func StackMsg(err error, msg string, trace ErrTrace) error {
 		return err
 	}
 
-	switch e := err.(type) {
-	case *Internal:
-		e.Err.Stack = append(e.Err.Stack, trace)
+	if te, ok := err.(TypedError); ok {
+		e := te.GetErr()
+		e.lock()
+		e.Stack = append(e.Stack, trace)
 		e.StackMessage = msg
-		return e
-	case *NotFound:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
-	case *Conflict:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
-	case *BadRequest:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
-	case *Unauthorized:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
-	case *Fatal:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
-	case *NoContent:
-		e.Err.Stack = append(e.Err.Stack, trace)
-		e.StackMessage = msg
-		return e
+		e.unlock()
+		return err
 	}
+
 	return err
 }
 
-// ErrorF returns the full error information
+// ErrorF returns the full error information with detailed stack trace
 func ErrorF(err error) string {
-
 	if err == nil {
 		return ""
 	}
 
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e == nil || (e.Cause == "" && e.Message == "") {
 		return err.Error()
 	}
 
-	var stackTrace string
+	e.rlock()
+	defer e.runlock()
 
-	traceFormat := "> Line=%-4d | Function=%-40s | File=%-30s"
+	// Build the output
+	output := fmt.Sprintf("\nError [Code: %d]", e.Code)
 
-	for _, stack := range e.Stack {
-		stackTrace += fmt.Sprintf("\n"+traceFormat, stack.Line, stack.Function, stack.File)
+	if e.Cause != "" {
+		output += fmt.Sprintf("\n  Cause:   %s", e.Cause)
 	}
 
-	return fmt.Sprintf("\n Full error information:\n- Cause: %s\n- Info: %s\n- Stack msg: %s\n- Error code: %d\n- Stack trace: %s", e.Cause, e.Message, e.StackMessage, e.Code, stackTrace)
+	if e.Message != "" {
+		output += fmt.Sprintf("\n  Message: %s", e.Message)
+	}
+
+	if e.StackMessage != "" {
+		output += fmt.Sprintf("\n  Stack:   %s", e.StackMessage)
+	}
+
+	// Add stack trace if available
+	if len(e.Stack) > 0 {
+		output += "\n\nStack Trace:"
+		for i, trace := range e.Stack {
+			output += fmt.Sprintf("\n  %d. %s:%d in %s", i+1, trace.File, trace.Line, trace.Function)
+		}
+	}
+
+	return output
 }
 
-// Unwrap returns the original error
+// Unwrap returns the original error (supports standard errors.Unwrap)
 func Unwrap(err error) error {
 
 	if err == nil {
@@ -174,7 +193,7 @@ func Unwrap(err error) error {
 	}
 
 	e := extractErr(err)
-	if e.Cause == "" && e.Message == "" {
+	if e == nil || (e.Cause == "" && e.Message == "") {
 		return err
 	}
 
@@ -186,6 +205,9 @@ func GetCause(err error) string {
 		return ""
 	}
 	e := extractErr(err)
+	if e == nil {
+		return err.Error()
+	}
 	if e.Cause == "" && e.Message != "" {
 		return e.Message
 	} else if e.Cause == "" && e.Message == "" {
@@ -199,7 +221,7 @@ func GetMessage(err error) string {
 		return ""
 	}
 	e := extractErr(err)
-	if e.Message == "" {
+	if e == nil || e.Message == "" {
 		return err.Error()
 	}
 	return e.Message
@@ -210,7 +232,7 @@ func GetTrace(err error) ErrTrace {
 		return ErrTrace{}
 	}
 	e := extractErr(err)
-	if e.Trace.File == "" {
+	if e == nil || e.Trace.File == "" {
 		return ErrTrace{}
 	}
 	return e.Trace
@@ -221,10 +243,21 @@ func GetStack(err error) []ErrTrace {
 		return []ErrTrace{}
 	}
 	e := extractErr(err)
+	if e == nil {
+		return []ErrTrace{}
+	}
+
+	e.rlock()
+	defer e.runlock()
+
 	if len(e.Stack) == 0 {
 		return []ErrTrace{}
 	}
-	return e.Stack
+
+	// Return a copy to prevent external modification
+	stackCopy := make([]ErrTrace, len(e.Stack))
+	copy(stackCopy, e.Stack)
+	return stackCopy
 }
 
 func GetStackJson(err error) string {
@@ -232,6 +265,13 @@ func GetStackJson(err error) string {
 		return ""
 	}
 	e := extractErr(err)
+	if e == nil {
+		return "{}"
+	}
+
+	e.rlock()
+	defer e.runlock()
+
 	if len(e.Stack) == 0 {
 		return "{}"
 	}
@@ -249,7 +289,7 @@ func GetWrapped(err error) error {
 		return nil
 	}
 	e := extractErr(err)
-	if e.Wrapped == nil {
+	if e == nil || e.Wrapped == nil {
 		return err
 	}
 	return e.Wrapped
@@ -259,28 +299,12 @@ func GetCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	e := extractErr(err)
-	if e.Code == 0 {
-		if IsNotFound(err) {
-			return 404
-		}
-		if IsUnauthorized(err) {
-			return 403
-		}
-		if IsBadRequest(err) {
-			return 400
-		}
-		if IsInternal(err) || IsFatal(err) {
-			return 500
-		}
-		if IsConflict(err) {
-			return 409
-		}
-		if IsNoContent(err) {
-			return 204
-		}
+
+	if te, ok := err.(TypedError); ok {
+		return te.GetCode()
 	}
-	return e.Code
+
+	return 0
 }
 
 func Trace() ErrTrace {

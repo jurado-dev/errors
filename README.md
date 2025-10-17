@@ -1,6 +1,6 @@
 # errors
 
-A Go error handling library with semantic HTTP-aligned error types, automatic stack tracing, and error wrapping capabilities.
+A modern Go error handling library with semantic HTTP-aligned error types, functional options API, automatic stack tracing, and full Go 1.13+ error chain support.
 
 ## Installation
 
@@ -11,9 +11,10 @@ go get github.com/jurado-dev/errors
 ## Features
 
 - **Semantic Error Types**: HTTP-aligned error types (`BadRequest`, `NotFound`, `Unauthorized`, `Internal`, `Conflict`, `Fatal`, `NoContent`)
+- **Functional Options API**: Clean, composable error construction
 - **Automatic Stack Tracing**: Capture file, function, and line information
-- **Error Wrapping**: Wrap underlying errors while adding context
-- **Flexible Construction**: Pass error details in any order
+- **Error Chain Support**: Full compatibility with Go 1.13+ `errors.Is()` and `errors.As()`
+- **Thread-Safe**: All operations protected with mutexes
 - **Type Checking**: Simple `Is*` functions for error type validation
 - **HTTP Code Mapping**: Automatic HTTP status code resolution
 
@@ -25,45 +26,36 @@ go get github.com/jurado-dev/errors
 import "github.com/jurado-dev/errors"
 
 // Simple error with message
-err := errors.NewBadRequest("invalid user input")
+err := errors.NewBadRequest(errors.Msg("invalid user input"))
 
-// Error with wrapped error and trace
-err := errors.NewInternal(dbErr, "database query failed", errors.Trace())
+// Error with cause and trace
+err := errors.NewNotFound(
+    errors.Cause(dbErr),
+    errors.Msg("user not found"),
+    errors.WithTrace(),
+)
+
+// Error with formatted message
+err := errors.NewInternal(
+    errors.Cause(dbErr),
+    errors.Messagef("failed to query user %s", userID),
+    errors.WithTrace(),
+)
 
 // Error with custom HTTP code
-err := errors.NewBadRequest("invalid format", 422)
+err := errors.NewBadRequest(
+    errors.Msg("invalid format"),
+    errors.Code(422),
+)
 
-// All parameters are optional and order-independent
-err := errors.NewNotFound(errors.Trace(), originalErr, "user not found")
+// All options are chainable and optional
+err := errors.NewConflict(
+    errors.Cause(originalErr),
+    errors.Msg("email already exists"),
+    errors.Code(409),
+    errors.WithTrace(),
+)
 ```
-
-### ⚠️ Important: Error Wrapping Rules
-
-**Use `New*()` constructors ONLY for errors from external packages:**
-
-```go
-// ✅ CORRECT: Wrapping standard library or third-party errors
-dbErr := sql.ErrNoRows  // External package error
-return errors.NewNotFound(dbErr, "user not found", errors.Trace())
-```
-
-**Use `Stack()` or `StackMsg()` for errors already using this package:**
-
-```go
-// ✅ CORRECT: Adding trace to errors from your own services
-err := userService.GetUser(id)  // Already returns errors.* type
-if err != nil {
-    return errors.Stack(err, errors.Trace())
-}
-
-// ❌ WRONG: Don't wrap errors that are already wrapped
-err := userService.GetUser(id)
-if err != nil {
-    return errors.NewInternal(err, "failed", errors.Trace())  // DON'T DO THIS!
-}
-```
-
-**Why this matters:** Double-wrapping loses the original error type and breaks type checking with `Is*()` functions.
 
 ### Error Types
 
@@ -77,9 +69,20 @@ if err != nil {
 | `Fatal` | 500 | Critical failures |
 | `NoContent` | 204 | Successful operation with no content |
 
+### Functional Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `Cause(err)` | Wrap an underlying error | `errors.Cause(dbErr)` |
+| `Msg(string)` | Set user-friendly message | `errors.Msg("user not found")` |
+| `Messagef(fmt, args...)` | Set formatted message | `errors.Messagef("user %s not found", id)` |
+| `WithTrace()` | Add stack trace | `errors.WithTrace()` |
+| `Code(int)` | Override HTTP status code | `errors.Code(422)` |
+
 ### Type Checking
 
 ```go
+// Using package-level type checkers (recommended)
 if errors.IsBadRequest(err) {
     // Handle bad request
 }
@@ -87,18 +90,21 @@ if errors.IsBadRequest(err) {
 if errors.IsNotFound(err) {
     // Handle not found
 }
+
+// Using Go 1.13+ errors.As (also works)
+var notFoundErr *errors.NotFound
+if errors.As(err, &notFoundErr) {
+    // Handle not found
+}
 ```
 
 ### Adding Stack Traces
 
-**Always use `Stack()` or `StackMsg()` when propagating errors from methods that already use this package:**
-
 ```go
-// Propagating error from your own service/repository
+// Propagating error with stack trace
 func processUser(id string) error {
-    user, err := userService.GetUser(id)  // Returns errors.* type
+    user, err := userService.GetUser(id)
     if err != nil {
-        // ✅ Add current location to existing error's stack
         return errors.Stack(err, errors.Trace())
     }
     return nil
@@ -106,44 +112,27 @@ func processUser(id string) error {
 
 // With additional context message
 func processOrder(id string) error {
-    order, err := orderService.GetOrder(id)  // Returns errors.* type
+    order, err := orderService.GetOrder(id)
     if err != nil {
-        // ✅ Add trace with contextual message
         return errors.StackMsg(err, "failed during order processing", errors.Trace())
     }
     return nil
 }
-
-// Wrapping external library errors
-func getUserFromDB(id string) error {
-    var user User
-    err := db.QueryRow("SELECT * FROM users WHERE id = ?", id).Scan(&user)
-    if err == sql.ErrNoRows {
-        // ✅ External error: use New* constructor
-        return errors.NewNotFound(err, "user not found", errors.Trace())
-    }
-    if err != nil {
-        // ✅ External error: use New* constructor
-        return errors.NewInternal(err, "database query failed", errors.Trace())
-    }
-    return nil
-}
-```
 ```
 
 ### Extracting Error Information
 
 ```go
-// Get the original cause message
+// Get the wrapped error cause
 cause := errors.GetCause(err)
 
 // Get the user-friendly message
 msg := errors.GetMessage(err)
 
 // Get HTTP status code
-code := errors.GetCode(err)
+code := errors.GetCode(err)  // Returns 404, 500, etc.
 
-// Get the initial trace
+// Get the trace information
 trace := errors.GetTrace(err)
 
 // Get full stack trace
@@ -153,7 +142,7 @@ stack := errors.GetStack(err)
 jsonStack := errors.GetStackJson(err)
 
 // Get the wrapped underlying error
-original := errors.GetWrapped(err)
+wrapped := errors.GetWrapped(err)
 ```
 
 ### Full Error Details
@@ -162,30 +151,40 @@ original := errors.GetWrapped(err)
 // Print complete error information including stack trace
 fmt.Println(errors.ErrorF(err))
 
-// Output:
-// Full error information:
-// - Cause: sql: no rows in result set
-// - Info: user not found
-// - Stack msg: failed during user lookup
-// - Error code: 404
-// - Stack trace:
-// > Line=45   | Function=/services.GetUserByID              | File=user_service.go
-// > Line=102  | Function=/handlers.UserHandler              | File=handlers.go
+// Example Output:
+// Error [Code: 404]
+//   Cause:   sql: no rows in result set
+//   Message: user not found
+//   Stack:   failed during user lookup
+//
+// Stack Trace:
+//   1. user_service.go:45 in /services.GetUserByID
+//   2. handlers.go:102 in /handlers.UserHandler
 ```
 
-### Error Wrapping & Unwrapping
+### Error Output Format
+
+The `Error()` method provides clean, readable output:
 
 ```go
-// Wrap an error with context
-dbErr := sql.ErrNoRows
-err := errors.NewNotFound(dbErr, "user not found", errors.Trace())
+err := errors.NewNotFound(
+    errors.Cause(sql.ErrNoRows),
+    errors.Msg("user not found"),
+    errors.WithTrace(),
+)
 
-// Unwrap to get the original error
-original := errors.Unwrap(err)
-fmt.Println(original) // sql: no rows in result set
+fmt.Println(err)
+// Output: sql: no rows in result set: user not found (at /services.GetUserByID:45)
 
-// Or use GetWrapped
-wrapped := errors.GetWrapped(err)
+// Without cause:
+err := errors.NewBadRequest(errors.Msg("invalid input"), errors.WithTrace())
+fmt.Println(err)
+// Output: invalid input (at /api.CreateUser:28)
+
+// Without trace:
+err := errors.NewBadRequest(errors.Msg("invalid input"))
+fmt.Println(err)
+// Output: invalid input
 ```
 
 ## Common Patterns
@@ -196,7 +195,6 @@ wrapped := errors.GetWrapped(err)
 func GetUserHandler(w http.ResponseWriter, r *http.Request) {
     user, err := userService.GetUser(r.Context(), id)
     if err != nil {
-        // Error already typed from service layer
         statusCode := errors.GetCode(err)
         message := errors.GetMessage(err)
         
@@ -218,21 +216,21 @@ func GetUserHandler(w http.ResponseWriter, r *http.Request) {
 
 ```go
 func (s *UserService) CreateUser(ctx context.Context, user User) error {
-    // Calling repository (uses this errors package)
+    // Check if user exists
     existing, err := s.repo.FindByEmail(user.Email)
     if err != nil && !errors.IsNotFound(err) {
-        // ✅ Repository returns errors.* type: use Stack()
         return errors.Stack(err, errors.Trace())
     }
     
     if existing != nil {
-        // ✅ New error originating here: use New*()
-        return errors.NewConflict("user with this email already exists", errors.Trace())
+        return errors.NewConflict(
+            errors.Msg("user with this email already exists"),
+            errors.WithTrace(),
+        )
     }
     
-    // Calling repository (uses this errors package)
+    // Create user
     if err := s.repo.Create(user); err != nil {
-        // ✅ Repository returns errors.* type: use Stack()
         return errors.Stack(err, errors.Trace())
     }
     
@@ -240,10 +238,8 @@ func (s *UserService) CreateUser(ctx context.Context, user User) error {
 }
 
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
-    // Calling repository (uses this errors package)
     user, err := s.repo.FindByID(id)
     if err != nil {
-        // ✅ Add context to existing error with StackMsg()
         return nil, errors.StackMsg(err, "failed to retrieve user", errors.Trace())
     }
     return user, nil
@@ -257,12 +253,20 @@ func (r *UserRepository) FindByID(id string) (*User, error) {
     var user User
     err := r.db.QueryRow("SELECT * FROM users WHERE id = ?", id).Scan(&user)
     
-    // ✅ External package errors: wrap with New*()
     if err == sql.ErrNoRows {
-        return nil, errors.NewNotFound(err, "user not found", errors.Trace())
+        return nil, errors.NewNotFound(
+            errors.Cause(err),
+            errors.Msg("user not found"),
+            errors.WithTrace(),
+        )
     }
+    
     if err != nil {
-        return nil, errors.NewInternal(err, "database query failed", errors.Trace())
+        return nil, errors.NewInternal(
+            errors.Cause(err),
+            errors.Msg("database query failed"),
+            errors.WithTrace(),
+        )
     }
     
     return &user, nil
@@ -271,12 +275,46 @@ func (r *UserRepository) FindByID(id string) (*User, error) {
 func (r *UserRepository) Create(user User) error {
     _, err := r.db.Exec("INSERT INTO users (...) VALUES (...)", user.Fields...)
     
-    // ✅ External package errors: wrap with New*()
     if err != nil {
         if isDuplicateKeyError(err) {
-            return errors.NewConflict(err, "user already exists", errors.Trace())
+            return errors.NewConflict(
+                errors.Cause(err),
+                errors.Msg("user already exists"),
+                errors.WithTrace(),
+            )
         }
-        return errors.NewInternal(err, "failed to insert user", errors.Trace())
+        return errors.NewInternal(
+            errors.Cause(err),
+            errors.Msg("failed to insert user"),
+            errors.WithTrace(),
+        )
+    }
+    
+    return nil
+}
+```
+
+### Input Validation
+
+```go
+func (s *UserService) ValidateUser(user User) error {
+    if user.Email == "" {
+        return errors.NewBadRequest(
+            errors.Msg("email is required"),
+        )
+    }
+    
+    if !isValidEmail(user.Email) {
+        return errors.NewBadRequest(
+            errors.Messagef("invalid email format: %s", user.Email),
+        )
+    }
+    
+    if len(user.Password) < 8 {
+        return errors.NewBadRequest(
+            errors.Msg("password must be at least 8 characters"),
+            errors.Code(422),
+        )
     }
     
     return nil
@@ -287,70 +325,81 @@ func (r *UserRepository) Create(user User) error {
 
 ```go
 func (s *OrderService) ProcessOrder(ctx context.Context, orderID string) error {
-    // Calling another service that uses this errors package
+    // Get user from internal service
     user, err := s.userService.GetUser(ctx, userID)
     if err != nil {
-        // ✅ Error from internal service: use Stack() or StackMsg()
         return errors.StackMsg(err, "failed to fetch user for order", errors.Trace())
     }
     
-    // Calling external API
+    // Call external payment API
     payment, err := s.paymentClient.Charge(amount)
     if err != nil {
-        // ✅ External service error: use New*()
-        return errors.NewInternal(err, "payment processing failed", errors.Trace())
+        return errors.NewInternal(
+            errors.Cause(err),
+            errors.Msg("payment processing failed"),
+            errors.WithTrace(),
+        )
     }
     
     return nil
 }
 ```
-```
 
-## Constructor Parameters
+## Error Wrapping & Unwrapping
 
-The `New*` constructors accept variadic parameters of the following types in any order:
-
-- `error`: Wrapped error (becomes the cause)
-- `string`: User-friendly message
-- `ErrTrace`: Stack trace information (use `errors.Trace()`)
-- `int`: Custom HTTP status code
+This package fully supports Go 1.13+ error unwrapping:
 
 ```go
-// All valid, parameters can be in any order:
-errors.NewBadRequest("message", errors.Trace())
-errors.NewBadRequest(errors.Trace(), "message")
-errors.NewBadRequest(originalErr, "message", errors.Trace(), 422)
-errors.NewBadRequest(422, errors.Trace(), "message", originalErr)
-```
+// Create error with cause
+dbErr := sql.ErrNoRows
+err := errors.NewNotFound(
+    errors.Cause(dbErr),
+    errors.Msg("user not found"),
+)
 
-### Decision Tree: When to Use What
+// Using standard library errors.Is
+if errors.Is(err, sql.ErrNoRows) {
+    // Handle sql.ErrNoRows
+}
 
-```
-Is the error from a package/service using github.com/jurado-dev/errors?
-│
-├─ YES → Use Stack() or StackMsg()
-│         • Preserves original error type
-│         • Maintains type checking with Is*()
-│         • Builds complete stack trace
-│
-└─ NO → Use New*() constructor
-          • Wraps external errors (stdlib, third-party, etc.)
-          • Creates new typed error
-          • Starts new stack trace
+// Using standard library errors.As
+var notFoundErr *errors.NotFound
+if errors.As(err, &notFoundErr) {
+    // Access NotFound-specific methods
+    code := notFoundErr.GetCode()
+}
+
+// Using package functions
+original := errors.Unwrap(err)
+fmt.Println(original)  // sql: no rows in result set
+
+wrapped := errors.GetWrapped(err)
 ```
 
 ## API Reference
 
 ### Error Constructors
-- `NewBadRequest(...interface{}) *BadRequest`
-- `NewUnauthorized(...interface{}) *Unauthorized`
-- `NewNotFound(...interface{}) *NotFound`
-- `NewConflict(...interface{}) *Conflict`
-- `NewInternal(...interface{}) *Internal`
-- `NewFatal(...interface{}) *Fatal`
-- `NewNoContent(...interface{}) *NoContent`
+
+All constructors accept functional options and return `error` interface:
+
+- `NewBadRequest(...ErrOption) error`
+- `NewUnauthorized(...ErrOption) error`
+- `NewNotFound(...ErrOption) error`
+- `NewConflict(...ErrOption) error`
+- `NewInternal(...ErrOption) error`
+- `NewFatal(...ErrOption) error`
+- `NewNoContent(...ErrOption) error`
+
+### Functional Options
+
+- `Cause(error) ErrOption` - Wrap an underlying error
+- `Msg(string) ErrOption` - Set user-friendly message
+- `Messagef(string, ...interface{}) ErrOption` - Set formatted message
+- `WithTrace() ErrOption` - Add stack trace
+- `Code(int) ErrOption` - Override HTTP status code
 
 ### Type Checking
+
 - `IsBadRequest(error) bool`
 - `IsUnauthorized(error) bool`
 - `IsNotFound(error) bool`
@@ -360,20 +409,34 @@ Is the error from a package/service using github.com/jurado-dev/errors?
 - `IsNoContent(error) bool`
 
 ### Stack Tracing
+
 - `Trace() ErrTrace` - Capture current file/line/function
 - `Stack(error, ErrTrace) error` - Add trace to stack
 - `StackMsg(error, string, ErrTrace) error` - Add trace with message
 
 ### Information Extraction
-- `GetCause(error) string` - Get original error message
+
+- `GetCause(error) string` - Get wrapped error message
 - `GetMessage(error) string` - Get user-friendly message
 - `GetCode(error) int` - Get HTTP status code
 - `GetTrace(error) ErrTrace` - Get initial trace
-- `GetStack(error) []ErrTrace` - Get full stack trace
+- `GetStack(error) []ErrTrace` - Get full stack trace (thread-safe copy)
 - `GetStackJson(error) string` - Get stack as JSON
 - `GetWrapped(error) error` - Get wrapped error
 - `ErrorF(error) string` - Get formatted full error details
-- `Unwrap(error) error` - Unwrap to original error
+- `Unwrap(error) error` - Unwrap to original error (Go 1.13+ compatible)
+
+## Thread Safety
+
+All operations in this package are thread-safe:
+
+- Error construction uses functional options (immutable)
+- Stack operations use mutexes to protect concurrent access
+- `GetStack()` returns a copy to prevent external modification
+
+## Migration from v1.0.x
+
+If you're upgrading from v1.0.x, see [CHANGELOG.md](CHANGELOG.md) for breaking changes and migration guide.
 
 ## License
 
