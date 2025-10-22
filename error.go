@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -286,23 +287,41 @@ func GetCode(err error) int {
 
 func Trace() ErrTrace {
 	pc := make([]uintptr, 10)
-	runtime.Callers(2, pc)
-	function := runtime.FuncForPC(pc[0])
+	n := runtime.Callers(2, pc)
+	if n < 2 {
+		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+	}
 
-	// Handle nil function gracefully
+	// Get the immediate caller of Trace()
+	function := runtime.FuncForPC(pc[0])
 	if function == nil {
 		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
 	}
 
-	file, line := function.FileLine(pc[0])
+	// Check if the caller is WithTrace() - if so, skip it and use the previous caller
+	var file string
+	var line int
+	var funcName string
+	if strings.Contains(function.Name(), "WithTrace") && n >= 3 {
+		// Use the caller of WithTrace()
+		function = runtime.FuncForPC(pc[1])
+		if function == nil {
+			return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+		}
+		file, line = function.FileLine(pc[1])
+		funcName = function.Name()
+	} else {
+		// Normal case: use the immediate caller
+		file, line = function.FileLine(pc[0])
+		funcName = function.Name()
+	}
 
-	// matching only the file name
+	// Apply regex to shorten file and function names as before
 	matches := fileRegex.FindStringSubmatch(file)
 	if len(matches) > 0 {
 		file = matches[1]
 	}
 
-	funcName := function.Name()
 	matches = funcRegex.FindStringSubmatch(funcName)
 	if len(matches) > 0 {
 		funcName = matches[1]
