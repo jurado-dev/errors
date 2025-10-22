@@ -298,18 +298,26 @@ func Trace() ErrTrace {
 		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
 	}
 
-	// Check if the caller is WithTrace() - if so, skip it and use the previous caller
+	// Check if the caller is WithTrace() - if so, skip it and check the next caller
 	var file string
 	var line int
 	var funcName string
 	if strings.Contains(function.Name(), "WithTrace") && n >= 3 {
-		// Use the caller of WithTrace()
-		function = runtime.FuncForPC(pc[1])
-		if function == nil {
-			return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+		// Get the caller of WithTrace()
+		function2 := runtime.FuncForPC(pc[1])
+		if function2 != nil && strings.Contains(function2.Name(), "applyOptions") && n >= 4 {
+			// Skip applyOptions() as well, use the caller of applyOptions()
+			function = runtime.FuncForPC(pc[2])
+			if function == nil {
+				return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+			}
+			file, line = function.FileLine(pc[2])
+			funcName = function.Name()
+		} else {
+			// Normal case: use the caller of WithTrace()
+			file, line = function2.FileLine(pc[1])
+			funcName = function2.Name()
 		}
-		file, line = function.FileLine(pc[1])
-		funcName = function.Name()
 	} else {
 		// Normal case: use the immediate caller
 		file, line = function.FileLine(pc[0])
