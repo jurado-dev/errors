@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
-	"strings"
 	"sync"
 )
 
@@ -285,43 +284,80 @@ func GetCode(err error) int {
 	return 0
 }
 
+var applyOptionsPattern = regexp.MustCompile(`(?i)errors\.applyOptions`)
+var traceFunPattern = regexp.MustCompile(`(?i)errors\.Trace`)
+
 func Trace() ErrTrace {
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(2, pc)
+	pc := make([]uintptr, 100)
+	n := runtime.Callers(0, pc)
 	if n < 2 {
 		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
 	}
-
-	// Get the immediate caller of Trace()
-	function := runtime.FuncForPC(pc[0])
-	if function == nil {
-		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
-	}
-
-	// Check if the caller is WithTrace() - if so, skip it and check the next caller
 	var file string
 	var line int
 	var funcName string
-	if strings.Contains(function.Name(), "WithTrace") && n >= 3 {
-		// Get the caller of WithTrace()
-		function2 := runtime.FuncForPC(pc[1])
-		if function2 != nil && strings.Contains(function2.Name(), "applyOptions") && n >= 4 {
-			// Skip applyOptions() as well, use the caller of applyOptions()
-			function = runtime.FuncForPC(pc[2])
-			if function == nil {
-				return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
-			}
-			file, line = function.FileLine(pc[2])
-			funcName = function.Name()
-		} else {
-			// Normal case: use the caller of WithTrace()
-			file, line = function2.FileLine(pc[1])
-			funcName = function2.Name()
+
+	// Identify the index of the last call to trace and applyOptions
+	/*
+		Example stack trace when using WithTrace:
+		github.com/jurado-dev/errors.Trace
+		github.com/jurado-dev/errors.Trace
+		github.com/jurado-dev/errors.nestedTrace.WithTrace.func2
+		github.com/jurado-dev/errors.applyOptions
+		github.com/jurado-dev/errors.NewInternal
+		github.com/jurado-dev/errors.nestedTrace // <- first caller outside errors package (applyOptionsIdx + 2)
+		github.com/jurado-dev/errors.TestWithTrace
+		testing.tRunner
+		runtime.goexit
+
+		Example stack trace when using Trace directly:
+		github.com/jurado-dev/errors.Trace
+		github.com/jurado-dev/errors.Trace
+		github.com/jurado-dev/errors.TestWithTrace // <- first caller outside errors package (traceIdx + 1)
+		testing.tRunner
+		runtime.goexit
+	*/
+	var applyOptionsIdx int = -1
+	var traceIdx int
+	pc = pc[:n]
+	for i, pcItem := range pc {
+		function := runtime.FuncForPC(pcItem)
+		if function == nil {
+			continue
 		}
-	} else {
-		// Normal case: use the immediate caller
-		file, line = function.FileLine(pc[0])
-		funcName = function.Name()
+		if applyOptionsPattern.MatchString(function.Name()) {
+			applyOptionsIdx = i
+		}
+		if traceFunPattern.MatchString(function.Name()) {
+			traceIdx = i
+		}
+	}
+	if len(pc) == 0 {
+		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+	}
+
+	var firstCall uintptr
+	if traceIdx > 0 && traceIdx < len(pc) && applyOptionsIdx == -1 {
+		callIdx := traceIdx + 1 // Trace -> caller
+		if callIdx < len(pc) {
+			firstCall = pc[callIdx]
+		}
+	} else if applyOptionsIdx > 0 && applyOptionsIdx < len(pc) {
+		callIdx := applyOptionsIdx + 2 // applyOptions -> NewXxx -> caller
+		if callIdx < len(pc) {
+			firstCall = pc[callIdx]
+		}
+	}
+	if firstCall == 0 {
+		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
+	}
+
+	function := runtime.FuncForPC(firstCall)
+	file, line = function.FileLine(firstCall)
+	funcName = function.Name()
+
+	if file == "" {
+		return ErrTrace{Line: 0, File: "unknown", Function: "unknown"}
 	}
 
 	// Apply regex to shorten file and function names as before

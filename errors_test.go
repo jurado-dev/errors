@@ -64,6 +64,7 @@ func TestWithCause(t *testing.T) {
 	assert.Equal(t, "user not found", GetMessage(err))
 	assert.Equal(t, original.Error(), GetCause(err))
 	assert.Equal(t, original, Unwrap(err))
+
 }
 
 func TestWithMessagef(t *testing.T) {
@@ -73,6 +74,10 @@ func TestWithMessagef(t *testing.T) {
 	assert.Equal(t, "user 123 not found", GetMessage(err))
 }
 
+func nestedTrace() error {
+	return NewInternal(Msg("nested error"), WithTrace())
+}
+
 func TestWithTrace(t *testing.T) {
 	err := NewInternal(Msg("test"), WithTrace())
 
@@ -80,6 +85,19 @@ func TestWithTrace(t *testing.T) {
 	assert.NotEmpty(t, trace.File)
 	assert.NotEmpty(t, trace.Function)
 	assert.Greater(t, trace.Line, 0)
+
+	// Testing trace
+	errTxt := err.Error()
+	if !assert.Contains(t, errTxt, "TestWithTrace") {
+		t.Fatalf("trace does not contain function name | got: %s | errorF: %s", errTxt, ErrorF(err))
+	}
+
+	// Testing nested trace
+	err = nestedTrace()
+	nested := Stack(err, Trace())
+	nestedTrace := GetStack(nested)
+	assert.Len(t, nestedTrace, 2)
+	t.Log(ErrorF(nested))
 }
 
 func TestWithCode(t *testing.T) {
