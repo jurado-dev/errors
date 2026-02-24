@@ -255,3 +255,32 @@ func IsNoContent(err error) bool {
 	var nc *NoContent
 	return stderrors.As(err, &nc)
 }
+
+
+type Timeout struct {
+	Err
+}
+
+func NewTimeout(opts ...Option) error {
+	return &Timeout{Err: applyOptions(opts)}
+}
+
+func (e *Timeout) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *Timeout) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 408
+}
+
+func (e *Timeout) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsTimeout(err error) bool {
+	var t *Timeout
+	return stderrors.As(err, &t)
+}
