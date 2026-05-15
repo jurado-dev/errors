@@ -188,7 +188,7 @@ func (e *Unauthorized) GetCode() int {
 	if e.Err.Code != 0 {
 		return e.Err.Code
 	}
-	return 403
+	return 401
 }
 
 func (e *Unauthorized) Unwrap() error {
@@ -283,4 +283,256 @@ func (e *Timeout) Unwrap() error {
 func IsTimeout(err error) bool {
 	var t *Timeout
 	return stderrors.As(err, &t)
+}
+
+type Forbidden struct {
+	Err
+}
+
+func NewForbidden(opts ...Option) error {
+	return &Forbidden{Err: applyOptions(opts)}
+}
+
+func (e *Forbidden) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *Forbidden) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 403
+}
+
+func (e *Forbidden) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsForbidden(err error) bool {
+	var f *Forbidden
+	return stderrors.As(err, &f)
+}
+
+type MethodNotAllowed struct {
+	Err
+}
+
+func NewMethodNotAllowed(opts ...Option) error {
+	return &MethodNotAllowed{Err: applyOptions(opts)}
+}
+
+func (e *MethodNotAllowed) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *MethodNotAllowed) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 405
+}
+
+func (e *MethodNotAllowed) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsMethodNotAllowed(err error) bool {
+	var m *MethodNotAllowed
+	return stderrors.As(err, &m)
+}
+
+type Gone struct {
+	Err
+}
+
+func NewGone(opts ...Option) error {
+	return &Gone{Err: applyOptions(opts)}
+}
+
+func (e *Gone) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *Gone) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 410
+}
+
+func (e *Gone) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsGone(err error) bool {
+	var g *Gone
+	return stderrors.As(err, &g)
+}
+
+type UnprocessableEntity struct {
+	Err
+}
+
+func NewUnprocessableEntity(opts ...Option) error {
+	return &UnprocessableEntity{Err: applyOptions(opts)}
+}
+
+func (e *UnprocessableEntity) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *UnprocessableEntity) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 422
+}
+
+func (e *UnprocessableEntity) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsUnprocessableEntity(err error) bool {
+	var u *UnprocessableEntity
+	return stderrors.As(err, &u)
+}
+
+type TooManyRequests struct {
+	Err
+}
+
+func NewTooManyRequests(opts ...Option) error {
+	return &TooManyRequests{Err: applyOptions(opts)}
+}
+
+func (e *TooManyRequests) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *TooManyRequests) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 429
+}
+
+func (e *TooManyRequests) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsTooManyRequests(err error) bool {
+	var t *TooManyRequests
+	return stderrors.As(err, &t)
+}
+
+type NotImplemented struct {
+	Err
+}
+
+func NewNotImplemented(opts ...Option) error {
+	return &NotImplemented{Err: applyOptions(opts)}
+}
+
+func (e *NotImplemented) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *NotImplemented) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 501
+}
+
+func (e *NotImplemented) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsNotImplemented(err error) bool {
+	var n *NotImplemented
+	return stderrors.As(err, &n)
+}
+
+type BadGateway struct {
+	Err
+}
+
+func NewBadGateway(opts ...Option) error {
+	return &BadGateway{Err: applyOptions(opts)}
+}
+
+func (e *BadGateway) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *BadGateway) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 502
+}
+
+func (e *BadGateway) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsBadGateway(err error) bool {
+	var b *BadGateway
+	return stderrors.As(err, &b)
+}
+
+type ServiceUnavailable struct {
+	Err
+}
+
+func NewServiceUnavailable(opts ...Option) error {
+	return &ServiceUnavailable{Err: applyOptions(opts)}
+}
+
+func (e *ServiceUnavailable) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *ServiceUnavailable) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 503
+}
+
+func (e *ServiceUnavailable) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsServiceUnavailable(err error) bool {
+	var s *ServiceUnavailable
+	return stderrors.As(err, &s)
+}
+
+type GatewayTimeout struct {
+	Err
+}
+
+func NewGatewayTimeout(opts ...Option) error {
+	return &GatewayTimeout{Err: applyOptions(opts)}
+}
+
+func (e *GatewayTimeout) GetErr() *Err {
+	return &e.Err
+}
+
+func (e *GatewayTimeout) GetCode() int {
+	if e.Err.Code != 0 {
+		return e.Err.Code
+	}
+	return 504
+}
+
+func (e *GatewayTimeout) Unwrap() error {
+	return e.Err.Wrapped
+}
+
+func IsGatewayTimeout(err error) bool {
+	var g *GatewayTimeout
+	return stderrors.As(err, &g)
 }

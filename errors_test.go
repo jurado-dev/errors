@@ -34,7 +34,7 @@ func TestNewUnauthorized(t *testing.T) {
 	err := NewUnauthorized(Msg("unauthorized"))
 	assert.NotNil(t, err)
 	assert.Equal(t, "unauthorized", GetMessage(err))
-	assert.Equal(t, 403, GetCode(err))
+	assert.Equal(t, 401, GetCode(err))
 }
 
 func TestNewConflict(t *testing.T) {
