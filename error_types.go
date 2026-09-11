@@ -42,6 +42,14 @@ func WithTrace() Option {
 	}
 }
 
+// Reason sets a stable machine-readable slug for the exact cause (e.g. "discount_below_cost").
+// Callers map it to user-facing text; the slug itself never changes wording.
+func Reason(reason string) Option {
+	return func(e *Err) {
+		e.Reason = reason
+	}
+}
+
 // Code sets a custom HTTP status code
 func Code(code int) Option {
 	return func(e *Err) {

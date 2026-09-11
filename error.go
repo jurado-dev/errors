@@ -20,6 +20,7 @@ var (
 type Err struct {
 	Cause        string     `json:"cause"`
 	Message      string     `json:"message"`
+	Reason       string     `json:"reason"`
 	StackMessage string     `json:"stack_message"`
 	Trace        ErrTrace   `json:"trace"`
 	Stack        []ErrTrace `json:"stack"`
@@ -202,6 +203,19 @@ func GetMessage(err error) string {
 		return err.Error()
 	}
 	return e.Message
+}
+
+// GetReason returns the stable reason slug set with the Reason option, or an empty string when
+// the error carries none. Survives Stack, since Stack keeps the same typed error.
+func GetReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	e := extractErr(err)
+	if e == nil {
+		return ""
+	}
+	return e.Reason
 }
 
 func GetTrace(err error) ErrTrace {
